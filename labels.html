@@ -6,19 +6,19 @@
 <title>Item labels</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
 :root{--ink:#15202B;--paper:#EDF0F3;--line:#CFD6DD;--muted:#566573}
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.45 'Barlow',system-ui,sans-serif}
+body{margin:0;background:var(--paper);color:var(--ink);font:500 16px/1.45 'Quicksand',system-ui,sans-serif}
 .controls{max-width:900px;margin:0 auto;padding:20px;display:grid;gap:12px}
-h1{font:700 32px/1.1 'Barlow Condensed','Arial Narrow',sans-serif;margin:0}
+h1{font:700 28px/1.1 'Quicksand',system-ui,sans-serif;margin:0}
 .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-input,select{font:500 16px 'Barlow',sans-serif;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;min-height:46px;background:#fff;color:var(--ink)}
+input,select{font:500 16px 'Quicksand',sans-serif;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;min-height:46px;background:#fff;color:var(--ink)}
 input{flex:1;min-width:200px}
-button,a.btn{font:600 16px 'Barlow',sans-serif;border:0;border-radius:10px;padding:12px 16px;min-height:46px;background:var(--ink);color:#fff;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+button,a.btn{font:600 16px 'Quicksand',sans-serif;border:0;border-radius:10px;padding:12px 16px;min-height:46px;background:var(--ink);color:#fff;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
 a.btn{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .muted{color:var(--muted)}
 .error{color:#B42318;font-weight:500}
@@ -26,7 +26,7 @@ a.btn{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .label{background:#fff;border:1px dashed #9AA6B2;border-radius:6px;padding:8px 10px;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;break-inside:avoid;height:1.25in}
 .label svg{width:1in;height:1in;display:block}
 .label .nm{font-weight:600;font-size:14px;line-height:1.2}
-.label .cd{font:700 18px 'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.02em;margin-top:4px}
+.label .cd{font:700 15px 'Quicksand',system-ui,sans-serif;margin-top:4px;overflow-wrap:anywhere}
 @media print{
   body{background:#fff}
   .controls{display:none}
