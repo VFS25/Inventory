@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Item labels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@700&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+:root{--ink:#15202B;--paper:#EDF0F3;--line:#CFD6DD;--muted:#566573}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.45 'Barlow',system-ui,sans-serif}
+.controls{max-width:900px;margin:0 auto;padding:20px;display:grid;gap:12px}
+h1{font:700 32px/1.1 'Barlow Condensed','Arial Narrow',sans-serif;margin:0}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+input,select{font:500 16px 'Barlow',sans-serif;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;min-height:46px;background:#fff;color:var(--ink)}
+input{flex:1;min-width:200px}
+button,a.btn{font:600 16px 'Barlow',sans-serif;border:0;border-radius:10px;padding:12px 16px;min-height:46px;background:var(--ink);color:#fff;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+a.btn{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.muted{color:var(--muted)}
+.error{color:#B42318;font-weight:500}
+.sheet{max-width:900px;margin:0 auto 40px;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(2.6in,1fr));gap:10px}
+.label{background:#fff;border:1px dashed #9AA6B2;border-radius:6px;padding:8px 10px;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;break-inside:avoid;height:1.25in}
+.label svg{width:1in;height:1in;display:block}
+.label .nm{font-weight:600;font-size:14px;line-height:1.2}
+.label .cd{font:700 18px 'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.02em;margin-top:4px}
+@media print{
+  body{background:#fff}
+  .controls{display:none}
+  .sheet{padding:0;margin:0;max-width:none;gap:0.12in}
+  @page{margin:0.4in}
+}
+</style>
+</head>
+<body>
+<div class="controls">
+  <a class="btn" href="index.html" style="justify-self:start">Back to scanner</a>
+  <h1>Item labels</h1>
+  <p class="muted">Each label's QR code holds the item code from the Items tab. Print on sticker paper or plain paper and tape it on.</p>
+  <div class="bar">
+    <input id="filter" placeholder="Filter by name or code" aria-label="Filter labels">
+    <select id="type" aria-label="Item type">
+      <option value="">All items</option>
+      <option value="Asset">Assets only</option>
+      <option value="Consumable">Consumables only</option>
+    </select>
+    <button id="printBtn" type="button">Print labels</button>
+  </div>
+  <p id="status" class="muted" role="status"></p>
+</div>
+<div id="sheet" class="sheet"></div>
+
+<script>
+const CFG = window.INVENTORY_CONFIG || {};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let items = [];
+
+function token() { try { return JSON.parse(localStorage.getItem('inv.token')); } catch (e) { return null; } }
+
+async function load() {
+  const status = document.getElementById('status');
+  if (!token()) { status.innerHTML = '<span class="error">Sign in on the scanner page first.</span>'; return; }
+  status.textContent = 'Loading items…';
+  try {
+    const res = await fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'bootstrap', token: token() }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error === 'AUTH' ? 'Your sign-in expired. Sign in on the scanner page again.' : j.error);
+    items = j.items;
+  } catch (err) {
+    try { items = (JSON.parse(localStorage.getItem('inv.cache')) || {}).items || []; } catch (e) { items = []; }
+    if (!items.length) { status.innerHTML = '<span class="error">' + esc(err.message) + '</span>'; return; }
+  }
+  render();
+}
+
+function qrSvg(text) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+}
+
+function render() {
+  const f = document.getElementById('filter').value.trim().toLowerCase();
+  const type = document.getElementById('type').value;
+  const shown = items.filter(i => (!type || i.type === type) && (!f || i.code.toLowerCase().includes(f) || i.name.toLowerCase().includes(f)));
+  document.getElementById('status').textContent = `${shown.length} label${shown.length === 1 ? '' : 's'}`;
+  document.getElementById('sheet').innerHTML = shown.map(i => `
+    <div class="label">${qrSvg(i.code)}<div><div class="nm">${esc(i.name)}</div><div class="cd">${esc(i.code)}</div></div></div>`).join('');
+}
+
+document.getElementById('filter').addEventListener('input', render);
+document.getElementById('type').addEventListener('change', render);
+document.getElementById('printBtn').addEventListener('click', () => window.print());
+load();
+</script>
+</body>
+</html>

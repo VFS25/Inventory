@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15202B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Event Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+<style>
+:root{
+  --ink:#15202B; --paper:#EDF0F3; --card:#FFFFFF; --line:#CFD6DD; --muted:#566573;
+  --out:#2447C9; --in:#0A7C5C; --warn:#A8520F; --bad:#B42318;
+  --mode:var(--out);
+  --sans:'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --cond:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
+}
+body[data-mode="IN"]{--mode:var(--in)}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.45 var(--sans);-webkit-text-size-adjust:100%}
+body{padding-bottom:env(safe-area-inset-bottom,0px)}
+main{max-width:560px;margin:0 auto;min-height:100vh}
+[hidden]{display:none!important}
+h1,h2{font-family:var(--cond);font-weight:700;letter-spacing:.01em;line-height:1.1;margin:0}
+h1{font-size:34px} h2{font-size:24px}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.pad{padding:20px}
+.stack>*+*{margin-top:14px}
+
+label{display:block;font-weight:500;font-size:15px;margin-bottom:6px}
+input{width:100%;font:500 18px var(--sans);color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:13px 14px;min-height:52px}
+input:focus{outline:none;border-color:var(--ink)}
+button,.btn{font:600 17px var(--sans);border:0;border-radius:10px;padding:14px 18px;min-height:52px;cursor:pointer;background:var(--ink);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+button:focus-visible,.btn:focus-visible,input:focus-visible{outline:3px solid #F2B705;outline-offset:2px}
+button.ghost,.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+button.full,.btn.full{width:100%}
+button:disabled{opacity:.5;cursor:default}
+.error{color:var(--bad);font-weight:500;font-size:15px}
+
+/* login */
+.brand{padding:48px 20px 8px}
+.brand h1{font-size:44px}
+.brand p{margin-top:8px}
+
+/* events */
+.topline{display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-size:15px}
+.linkish{background:none;color:var(--ink);text-decoration:underline;padding:0;min-height:0;font:500 15px var(--sans)}
+.eventlist{display:grid;gap:10px}
+.event{width:100%;text-align:left;background:var(--card);color:var(--ink);border:1.5px solid var(--line);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.event strong{display:block;font-size:19px;font-weight:600}
+.badge{font-size:13px;font-weight:600;background:#FDF1E3;color:var(--warn);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.empty{border:1.5px dashed var(--line);border-radius:12px;padding:18px;color:var(--muted)}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:18px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* scan screen: the mode band */
+.band{background:var(--mode);color:#fff;padding:12px 16px 16px;transition:background-color .25s ease;position:sticky;top:0;z-index:5;padding-top:calc(12px + env(safe-area-inset-top,0px))}
+.bandtop{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px}
+.bandtop button{background:rgba(255,255,255,.16);min-height:40px;padding:8px 12px;font-size:15px}
+.evname{font-weight:500;opacity:.92;margin-top:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modename{font-family:var(--cond);font-weight:700;font-size:40px;line-height:1;margin-top:2px}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;background:rgba(0,0,0,.18);padding:5px;border-radius:12px}
+.modes button{background:transparent;color:#fff;min-height:46px;border-radius:8px}
+.modes button[aria-pressed="true"]{background:#fff;color:var(--mode)}
+.pill{font-size:13px;font-weight:600;border-radius:999px;padding:5px 10px;background:rgba(255,255,255,.18);white-space:nowrap}
+.pill.wait{background:#FDF1E3;color:var(--warn)}
+.pill.off{background:#FDE8E7;color:var(--bad)}
+
+.reader-wrap{background:#0B1116;border-radius:14px;overflow:hidden;position:relative;min-height:220px;display:flex;align-items:center;justify-content:center}
+#reader{width:100%}
+#reader video{border-radius:0}
+.reader-idle{color:#C9D3DC;text-align:center;padding:24px}
+.reader-idle p{margin-bottom:14px}
+.manual{display:grid;grid-template-columns:1fr auto;gap:8px}
+.manual input{text-transform:uppercase}
+
+.flash{border-radius:12px;padding:14px 16px;border:1.5px solid var(--line);background:var(--card)}
+.flash strong{display:block;font-size:18px;font-weight:600}
+.flash.good{border-color:var(--mode);background:color-mix(in srgb,var(--mode) 9%,#fff)}
+.flash.warn{border-color:var(--warn);background:#FDF1E3}
+.flash.bad{border-color:var(--bad);background:#FDE8E7}
+.flash.pop{animation:pop .22s ease-out}
+@keyframes pop{from{transform:scale(.97)}to{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.flash.pop{animation:none}.band{transition:none}}
+
+.listhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.checklist{background:var(--card);border:1.5px solid var(--line);border-radius:14px;overflow:hidden}
+.item{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 16px;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item .nm{font-weight:600}
+.item .cd{font-size:13px;color:var(--muted)}
+.item .nums{text-align:right;font-size:15px;color:var(--muted);white-space:nowrap}
+.item .nums b{color:var(--ink);font-weight:600}
+.chip{justify-self:end;font-size:13px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.chip.open{background:#FDF1E3;color:var(--warn)}
+.chip.done{background:#E4F3EC;color:var(--in)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+dialog{border:0;border-radius:16px;padding:0;width:min(92vw,440px);color:var(--ink)}
+dialog::backdrop{background:rgba(21,32,43,.55)}
+dialog form{padding:22px}
+.qty{font:600 34px var(--cond);text-align:center;min-height:64px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.steps button{min-height:44px;padding:8px;background:var(--paper);color:var(--ink);font-size:16px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;font-size:15px;max-width:92vw;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.toast.bad{background:var(--bad)}
+</style>
+</head>
+<body data-mode="OUT">
+<main>
+
+<!-- Sign in -->
+<section id="login" hidden>
+  <div class="brand">
+    <h1 id="appName">Event Inventory</h1>
+    <p class="muted">Scan items out for events and back in when they return.</p>
+  </div>
+  <form id="loginForm" class="pad stack" autocomplete="on">
+    <div><label for="loginName">Your name</label><input id="loginName" autocomplete="name" required></div>
+    <div><label for="loginPin">Staff PIN</label><input id="loginPin" type="password" inputmode="numeric" autocomplete="current-password" required></div>
+    <p id="loginError" class="error" role="alert"></p>
+    <button class="full" type="submit">Sign in</button>
+  </form>
+</section>
+
+<!-- Events -->
+<section id="events" hidden>
+  <div class="topline"><span class="muted">Signed in as <b id="whoami"></b></span><button class="linkish" id="signOutBtn" type="button">Sign out</button></div>
+  <div class="pad stack">
+    <h1>Pick an event</h1>
+    <div id="eventList" class="eventlist"></div>
+    <form id="newEventForm" class="card stack">
+      <h2>New event</h2>
+      <div><label for="evName">Event name</label><input id="evName" placeholder="e.g. Fall career fair" required></div>
+      <div><label for="evDate">Date</label><input id="evDate" type="date"></div>
+      <p id="evError" class="error" role="alert"></p>
+      <button class="full" type="submit">Create event</button>
+    </form>
+    <a class="btn ghost full" href="labels.html">Print item labels</a>
+  </div>
+</section>
+
+<!-- Scan -->
+<section id="scan" hidden>
+  <header class="band">
+    <div class="bandtop">
+      <button type="button" id="backBtn" aria-label="Back to events">Events</button>
+      <span id="syncPill" class="pill" role="status">All saved</span>
+    </div>
+    <p class="evname" id="scanEventName"></p>
+    <p class="modename" id="modeName">Packing out</p>
+    <div class="modes" role="group" aria-label="Scan mode">
+      <button type="button" data-mode="OUT" aria-pressed="true">Pack out</button>
+      <button type="button" data-mode="IN" aria-pressed="false">Return</button>
+    </div>
+  </header>
+
+  <div class="pad stack">
+    <div class="reader-wrap">
+      <div id="reader"></div>
+      <div id="readerIdle" class="reader-idle">
+        <p>Point the camera at an item label.</p>
+        <button type="button" id="camStart">Start camera</button>
+      </div>
+    </div>
+    <form id="manualForm" class="manual">
+      <input id="manualCode" placeholder="Or type a code" autocapitalize="characters" autocomplete="off" aria-label="Item code">
+      <button type="submit">Add</button>
+    </form>
+
+    <div id="flash" class="flash" aria-live="polite"><strong>Ready to scan</strong><span class="muted small">Each scan is saved on this phone first, then sent to the Sheet.</span></div>
+
+    <div class="actions">
+      <button type="button" class="ghost" id="undoBtn">Undo last scan</button>
+      <button type="button" class="ghost" id="camStop">Stop camera</button>
+    </div>
+
+    <div class="listhead"><h2>This event</h2><span id="listSummary" class="muted small"></span></div>
+    <div id="checklist" class="checklist"></div>
+
+    <div class="actions">
+      <button type="button" class="ghost" id="exportBtn">Export to Excel</button>
+      <button type="button" id="closeBtn">Close event</button>
+    </div>
+  </div>
+</section>
+
+<!-- Closed event summary -->
+<section id="summary" hidden>
+  <div class="pad stack">
+    <h1 id="sumTitle">Event closed</h1>
+    <p id="sumNote" class="muted"></p>
+    <div id="sumList" class="checklist"></div>
+    <button type="button" class="ghost full" id="sumExport">Export to Excel</button>
+    <button type="button" class="full" id="sumBack">Back to events</button>
+  </div>
+</section>
+
+</main>
+
+<!-- Quantity dialog for consumables -->
+<dialog id="qtyDialog">
+  <form method="dialog" id="qtyForm" class="stack">
+    <h2 id="qtyTitle"></h2>
+    <p id="qtyHint" class="muted small"></p>
+    <input id="qtyInput" class="qty" type="number" inputmode="numeric" min="1" step="1" aria-label="Quantity">
+    <div class="steps">
+      <button type="button" data-add="1">+1</button><button type="button" data-add="10">+10</button>
+      <button type="button" data-add="50">+50</button><button type="button" data-add="100">+100</button>
+    </div>
+    <p id="qtyError" class="error" role="alert"></p>
+    <div class="actions">
+      <button type="button" class="ghost" id="qtyCancel">Cancel</button>
+      <button type="submit" id="qtySave">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Close event confirmation -->
+<dialog id="closeDialog">
+  <form method="dialog" class="stack">
+    <h2>Close this event?</h2>
+    <div id="closeBody" class="small"></div>
+    <p id="closeError" class="error" role="alert"></p>
+    <div class="actions">
+      <button type="button" class="ghost" id="closeCancel">Keep scanning</button>
+      <button type="button" id="closeConfirm">Close event</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" hidden role="status"></div>
+
+<script>
+const CFG = window.INVENTORY_CONFIG || {};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('inv.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('inv.' + k, JSON.stringify(v)); } catch (e) {} }
+};
+
+const S = {
+  token: LS.get('token', null), name: LS.get('name', ''),
+  items: {}, events: [], event: null, mode: 'OUT',
+  serverTally: {}, queue: LS.get('queue', []), session: [],
+  lastCode: '', lastAt: 0, busy: false, syncing: false,
+  scanner: null, cameraOn: false, summary: null
+};
+
+/* ---------------- API ---------------- */
+async function api(action, data = {}) {
+  if (!CFG.API_URL || CFG.API_URL.indexOf('PASTE_') === 0) throw new Error('The app is not connected yet. Add the Apps Script URL to config.js.');
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const res = await fetch(CFG.API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // plain text avoids a CORS preflight Apps Script can't answer
+      body: JSON.stringify(Object.assign({ action, token: S.token }, data)),
+      signal: ctl.signal
+    });
+    const j = await res.json();
+    if (!j.ok && j.error === 'AUTH') { signOut('Your sign-in has expired. Enter the PIN again.'); throw new Error('Signed out'); }
+    return j;
+  } finally { clearTimeout(timer); }
+}
+
+/* ---------------- Screens ---------------- */
+function show(id) {
+  ['login', 'events', 'scan', 'summary'].forEach(s => $(s).hidden = s !== id);
+  if (id !== 'scan') stopCamera();
+  window.scrollTo(0, 0);
+}
+
+function toast(msg, bad) {
+  const t = $('toast');
+  t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.hidden = true, bad ? 5000 : 2800);
+}
+
+/* ---------------- Sign in ---------------- */
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('loginError').textContent = '';
+  const btn = e.submitter || e.target.querySelector('button');
+  btn.disabled = true;
+  try {
+    const r = await api('login', { name: $('loginName').value, pin: $('loginPin').value });
+    if (!r.ok) { $('loginError').textContent = r.error; return; }
+    S.token = r.token; S.name = r.name;
+    LS.set('token', S.token); LS.set('name', S.name);
+    $('loginPin').value = '';
+    await loadData();
+    show('events');
+  } catch (err) {
+    $('loginError').textContent = navigator.onLine ? err.message : 'No internet connection. Signing in needs a connection the first time.';
+  } finally { btn.disabled = false; }
+});
+
+function signOut(msg) {
+  S.token = null; LS.set('token', null);
+  $('loginName').value = S.name || '';
+  $('loginError').textContent = msg || '';
+  show('login');
+}
+$('signOutBtn').addEventListener('click', () => signOut());
+
+/* ---------------- Events ---------------- */
+async function loadData() {
+  try {
+    const r = await api('bootstrap');
+    if (!r.ok) throw new Error(r.error);
+    setData(r.items, r.events);
+    LS.set('cache', { items: r.items, events: r.events });
+  } catch (err) {
+    const c = LS.get('cache', null);
+    if (c) { setData(c.items, c.events); toast('Offline. Showing the last saved item and event list.'); }
+    else if (err.message !== 'Signed out') toast(err.message, true);
+  }
+  renderEvents();
+}
+
+function setData(items, events) {
+  S.items = {}; (items || []).forEach(i => S.items[i.code] = i);
+  S.events = events || [];
+}
+
+function renderEvents() {
+  $('whoami').textContent = S.name;
+  const list = $('eventList');
+  if (!S.events.length) {
+    list.innerHTML = '<div class="empty">No open events. Create one below before you start packing.</div>';
+    return;
+  }
+  list.innerHTML = S.events.map((ev, i) => {
+    const waiting = S.queue.filter(s => s.eventId === ev.id).length;
+    return `<button type="button" class="event" data-i="${i}">
+      <span><strong>${esc(ev.name)}</strong><span class="muted small">${esc(ev.date || 'No date')}</span></span>
+      ${waiting ? `<span class="badge">${waiting} waiting to send</span>` : ''}
+    </button>`;
+  }).join('');
+  list.querySelectorAll('.event').forEach(b => b.addEventListener('click', () => openEvent(S.events[+b.dataset.i])));
+}
+
+$('newEventForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('evError').textContent = '';
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  try {
+    const r = await api('createEvent', { name: $('evName').value, date: $('evDate').value });
+    if (!r.ok) { $('evError').textContent = r.error; return; }
+    S.events.unshift(r.event);
+    LS.set('cache', { items: Object.values(S.items), events: S.events });
+    e.target.reset();
+    openEvent(r.event);
+  } catch (err) {
+    $('evError').textContent = navigator.onLine ? err.message : 'Creating an event needs an internet connection.';
+  } finally { btn.disabled = false; }
+});
+
+function openEvent(ev) {
+  S.event = ev; S.session = []; S.serverTally = {};
+  $('scanEventName').textContent = ev.name + (ev.date ? ', ' + ev.date : '');
+  setFlash('', 'Ready to scan', 'Pick Pack out or Return, then scan labels.');
+  setMode('OUT');
+  show('scan');
+  renderChecklist();
+  refreshTally();
+}
+
+async function refreshTally() {
+  if (!S.event) return;
+  try {
+    const r = await api('eventStatus', { eventId: S.event.id });
+    if (r.ok) { S.serverTally = r.tally; renderChecklist(); }
+  } catch (e) {}
+}
+
+$('backBtn').addEventListener('click', () => { S.event = null; renderEvents(); show('events'); loadData(); });
+
+/* ---------------- Mode ---------------- */
+function setMode(m) {
+  S.mode = m;
+  document.body.dataset.mode = m;
+  $('modeName').textContent = m === 'OUT' ? 'Packing out' : 'Returning';
+  document.querySelectorAll('.modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+  document.querySelector('meta[name=theme-color]').content = m === 'OUT' ? '#2447C9' : '#0A7C5C';
+  renderChecklist();
+}
+document.querySelectorAll('.modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+/* ---------------- Tally (server totals + scans still waiting to send) ---------------- */
+function currentTally() {
+  const t = {};
+  Object.keys(S.serverTally).forEach(c => t[c] = { out: S.serverTally[c].out, in: S.serverTally[c].in });
+  S.queue.filter(s => S.event && s.eventId === S.event.id).forEach(s => {
+    t[s.code] = t[s.code] || { out: 0, in: 0 };
+    if (s.dir === 'IN') t[s.code].in += s.qty; else t[s.code].out += s.qty;
+  });
+  return t;
+}
+
+function renderChecklist() {
+  if (!S.event) return;
+  const t = currentTally();
+  const codes = Object.keys(t).filter(c => t[c].out || t[c].in);
+  if (!codes.length) {
+    $('checklist').innerHTML = '<div class="item"><span class="muted">Nothing packed yet. Scan a label or type a code to start.</span></div>';
+    $('listSummary').textContent = '';
+    return;
+  }
+  const rows = codes.map(c => {
+    const it = S.items[c] || { name: c, type: 'Asset' };
+    return { code: c, name: it.name, type: it.type, out: t[c].out, in: t[c].in, left: t[c].out - t[c].in };
+  }).sort((a, b) => (b.left > 0) - (a.left > 0) || a.name.localeCompare(b.name));
+
+  const stillOut = rows.filter(r => r.left > 0).length;
+  $('listSummary').textContent = `${rows.length} item${rows.length === 1 ? '' : 's'}, ${stillOut} still out`;
+  $('checklist').innerHTML = rows.map(r => `
+    <div class="item">
+      <span><span class="nm">${esc(r.name)}</span><br><span class="cd">${esc(r.code)}${r.type === 'Consumable' ? ', counted' : ''}</span></span>
+      <span class="nums">Packed <b>${r.out}</b><br>Back <b>${r.in}</b></span>
+      <span></span>
+      ${r.left > 0 ? `<span class="chip open">${r.left} still out</span>` : `<span class="chip done">All back</span>`}
+    </div>`).join('');
+}
+
+/* ---------------- Scanning ---------------- */
+function handleCode(raw, fromCamera) {
+  const code = String(raw || '').trim().toUpperCase();
+  if (!code || !S.event || S.busy) return;
+  const now = Date.now();
+  if (fromCamera && code === S.lastCode && now - S.lastAt < 2500) return;   // same label still in view
+  S.lastCode = code; S.lastAt = now;
+
+  const item = S.items[code];
+  if (!item) {
+    setFlash('bad', `${code} is not in the item list`, 'Add it to the Items tab in the Sheet, then go back to Events to reload.');
+    return feedback(false);
+  }
+  const t = currentTally()[code] || { out: 0, in: 0 };
+  const left = t.out - t.in;
+
+  if (item.type === 'Asset') {
+    if (S.mode === 'OUT' && left >= 1) { setFlash('warn', `${item.name} is already packed`, code); return feedback(false); }
+    if (S.mode === 'IN' && left <= 0) { setFlash('warn', `${item.name} was not packed for this event`, code + '. Nothing recorded.'); return feedback(false); }
+    record(item, 1);
+  } else {
+    askQty(item, left);
+  }
+}
+
+function record(item, qty) {
+  const scan = { id: uid(), ts: Date.now(), eventId: S.event.id, code: item.code, qty, dir: S.mode };
+  S.queue.push(scan); LS.set('queue', S.queue);
+  S.session.unshift({ scan, name: item.name });
+  setFlash('good', `${S.mode === 'OUT' ? 'Packed' : 'Returned'} ${qty} × ${item.name}`, item.code);
+  feedback(true);
+  renderChecklist();
+  sync();
+}
+
+$('undoBtn').addEventListener('click', () => {
+  const last = S.session.find(x => !x.undone && x.scan.qty > 0);
+  if (!last) return toast('Nothing to undo from this session.');
+  const rev = Object.assign({}, last.scan, { id: uid(), ts: Date.now(), qty: -last.scan.qty });
+  last.undone = true;
+  S.queue.push(rev); LS.set('queue', S.queue);
+  setFlash('warn', `Undone: ${last.scan.dir === 'OUT' ? 'packed' : 'returned'} ${last.scan.qty} × ${last.name}`, last.scan.code);
+  renderChecklist();
+  sync();
+});
+
+$('manualForm').addEventListener('submit', e => {
+  e.preventDefault();
+  primeAudio();
+  handleCode($('manualCode').value, false);
+  $('manualCode').value = '';
+});
+
+function setFlash(kind, title, sub) {
+  const f = $('flash');
+  f.className = 'flash ' + kind;
+  f.innerHTML = `<strong>${esc(title)}</strong><span class="muted small">${esc(sub || '')}</span>`;
+  void f.offsetWidth; f.classList.add('pop');
+}
+
+/* ---------------- Quantity dialog ---------------- */
+let qtyItem = null, qtyLeft = 0;
+function askQty(item, left) {
+  S.busy = true; pauseCamera();
+  qtyItem = item; qtyLeft = left;
+  $('qtyTitle').textContent = item.name;
+  $('qtyHint').textContent = S.mode === 'OUT'
+    ? `How many are you packing?${left > 0 ? ' ' + left + ' already packed for this event.' : ''}`
+    : `${left} still out for this event. Count how many came back.`;
+  $('qtyInput').value = '';
+  $('qtyError').textContent = '';
+  $('qtyDialog').showModal();
+  setTimeout(() => $('qtyInput').focus(), 50);
+}
+document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+  $('qtyInput').value = (parseInt($('qtyInput').value, 10) || 0) + (+b.dataset.add);
+}));
+$('qtyForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const n = parseInt($('qtyInput').value, 10);
+  if (!n || n < 1) { $('qtyError').textContent = 'Enter a number of 1 or more.'; return; }
+  if (n > 100000) { $('qtyError').textContent = 'That number is too large.'; return; }
+  if (S.mode === 'IN' && n > qtyLeft) { $('qtyError').textContent = `Only ${qtyLeft} are out for this event.`; return; }
+  $('qtyDialog').close();
+  record(qtyItem, n);
+});
+$('qtyCancel').addEventListener('click', () => $('qtyDialog').close());
+$('qtyDialog').addEventListener('close', () => { S.busy = false; resumeCamera(); });
+
+/* ---------------- Camera ---------------- */
+async function startCamera() {
+  primeAudio();
+  if (S.cameraOn) return;
+  if (!window.Html5Qrcode) return toast('The scanner did not load. Check your connection and reload the page.', true);
+  S.scanner = S.scanner || new Html5Qrcode('reader', { verbose: false });
+  try {
+    await S.scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: (w, h) => { const m = Math.min(w, h); return { width: Math.max(120, Math.floor(m * 0.85)), height: Math.max(80, Math.floor(m * 0.6)) }; } },
+      text => handleCode(text, true),
+      () => {}
+    );
+    S.cameraOn = true;
+  } catch (err) {
+    toast('The camera is blocked. Allow camera access for this site in your browser settings, or type codes below.', true);
+  }
+  $('readerIdle').hidden = S.cameraOn;
+}
+async function stopCamera() {
+  if (!S.cameraOn) return;
+  try { await S.scanner.stop(); } catch (e) {}
+  S.cameraOn = false;
+  $('readerIdle').hidden = false;
+}
+function pauseCamera() { if (S.cameraOn) try { S.scanner.pause(true); } catch (e) {} }
+function resumeCamera() { if (S.cameraOn) try { S.scanner.resume(); } catch (e) {} }
+$('camStart').addEventListener('click', startCamera);
+$('camStop').addEventListener('click', stopCamera);
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopCamera(); });
+
+/* ---------------- Beep + buzz ---------------- */
+let actx = null;
+function primeAudio() {
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
+}
+function feedback(ok) {
+  try {
+    if (actx) {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = ok ? 'sine' : 'square';
+      o.frequency.value = ok ? 1320 : 220;
+      g.gain.value = 0.08;
+      o.connect(g); g.connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + (ok ? 0.09 : 0.25));
+    }
+  } catch (e) {}
+  if (navigator.vibrate) navigator.vibrate(ok ? 40 : [80, 60, 80]);
+}
+
+/* ---------------- Sync ---------------- */
+async function sync() {
+  if (S.syncing || !S.queue.length || !S.token || !navigator.onLine) return updatePill();
+  S.syncing = true; updatePill();
+  let again = false;
+  try {
+    const batch = S.queue.slice(0, 100);
+    const r = await api('scans', { scans: batch });
+    if (r.ok) {
+      const done = new Set(r.accepted.concat(r.rejected.map(x => x.id)));
+      if (S.event) {
+        const t = await api('eventStatus', { eventId: S.event.id }).catch(() => null);
+        if (t && t.ok) S.serverTally = t.tally;
+      }
+      S.queue = S.queue.filter(s => !done.has(s.id));
+      LS.set('queue', S.queue);
+      r.rejected.forEach(x => toast('Not saved: ' + x.error, true));
+      again = S.queue.length > 0;
+    } else if (r.error) {
+      toast('Sync problem: ' + r.error, true);
+    }
+  } catch (e) { /* offline or timed out: scans stay queued */ }
+  finally {
+    S.syncing = false;
+    updatePill(); renderChecklist();
+    if (again) setTimeout(sync, 400);
+  }
+}
+
+function updatePill() {
+  const p = $('syncPill'), n = S.queue.length;
+  if (!navigator.onLine) { p.className = 'pill off'; p.textContent = n ? `Offline, ${n} waiting` : 'Offline'; }
+  else if (S.syncing) { p.className = 'pill'; p.textContent = 'Sending…'; }
+  else if (n) { p.className = 'pill wait'; p.textContent = `${n} waiting to send`; }
+  else { p.className = 'pill'; p.textContent = 'All saved'; }
+}
+setInterval(sync, 10000);
+window.addEventListener('online', sync);
+window.addEventListener('offline', updatePill);
+
+/* ---------------- Close event ---------------- */
+$('closeBtn').addEventListener('click', async () => {
+  await sync();
+  $('closeError').textContent = '';
+  const pending = S.queue.filter(s => s.eventId === S.event.id).length;
+  const t = currentTally();
+  const out = Object.keys(t).filter(c => t[c].out - t[c].in > 0).map(c => ({ it: S.items[c] || { name: c, type: 'Asset' }, left: t[c].out - t[c].in }));
+  const missing = out.filter(x => x.it.type === 'Asset');
+  const given = out.filter(x => x.it.type === 'Consumable');
+  let html = '';
+  if (pending) html += `<p class="error">${pending} scan${pending === 1 ? ' is' : 's are'} still waiting to send. Connect to the internet before closing.</p>`;
+  if (missing.length) html += `<p><b>These will be marked missing:</b></p><ul>${missing.map(x => `<li>${esc(x.it.name)}</li>`).join('')}</ul>`;
+  if (given.length) html += `<p><b>These will be counted as given away:</b></p><ul>${given.map(x => `<li>${x.left} × ${esc(x.it.name)}</li>`).join('')}</ul>`;
+  if (!missing.length && !given.length) html += '<p>Everything packed for this event has been scanned back in.</p>';
+  html += '<p class="muted">After closing, this event can no longer be scanned.</p>';
+  $('closeBody').innerHTML = html;
+  $('closeConfirm').disabled = pending > 0;
+  $('closeDialog').showModal();
+});
+$('closeCancel').addEventListener('click', () => $('closeDialog').close());
+$('closeConfirm').addEventListener('click', async () => {
+  const btn = $('closeConfirm');
+  btn.disabled = true; $('closeError').textContent = '';
+  try {
+    const r = await api('closeEvent', { eventId: S.event.id });
+    if (!r.ok) { $('closeError').textContent = r.error; return; }
+    $('closeDialog').close();
+    S.summary = { event: S.event, rows: r.summary };
+    S.events = S.events.filter(e => e.id !== S.event.id);
+    LS.set('cache', { items: Object.values(S.items), events: S.events });
+    renderSummary(r.emailed);
+    S.event = null;
+    show('summary');
+  } catch (err) {
+    $('closeError').textContent = navigator.onLine ? err.message : 'Closing an event needs an internet connection.';
+  } finally { btn.disabled = false; }
+});
+
+function renderSummary(emailed) {
+  const { event, rows } = S.summary;
+  $('sumTitle').textContent = event.name + ' is closed';
+  $('sumNote').textContent = 'Stock in the Sheet has been updated.' + (emailed ? ' An Excel report was emailed.' : '');
+  $('sumList').innerHTML = rows.length ? rows.map(r => `
+    <div class="item">
+      <span><span class="nm">${esc(r.name)}</span><br><span class="cd">${esc(r.code)}</span></span>
+      <span class="nums">Packed <b>${r.out}</b><br>Back <b>${r.in}</b></span>
+      <span></span>
+      <span class="chip ${/^MISSING/.test(r.result) ? 'open' : 'done'}">${esc(r.result)}</span>
+    </div>`).join('') : '<div class="item"><span class="muted">No items were scanned for this event.</span></div>';
+}
+$('sumBack').addEventListener('click', () => { renderEvents(); show('events'); loadData(); });
+
+/* ---------------- Excel export ---------------- */
+function exportRows(event, rows) {
+  if (!window.XLSX) return toast('The Excel exporter did not load. Check your connection and reload.', true);
+  const data = rows.map(r => ({
+    'Code': r.code, 'Item': r.name, 'Type': r.type,
+    'Packed out': r.out, 'Returned': r.in, 'Difference': r.out - r.in,
+    'Result': r.result || (r.out - r.in > 0 ? (r.type === 'Consumable' ? 'Still out (not closed yet)' : 'Still out') : 'All returned')
+  }));
+  const ws = XLSX.utils.json_to_sheet(data.length ? data : [{ 'Code': '', 'Item': 'No items scanned' }]);
+  ws['!cols'] = [{ wch: 16 }, { wch: 30 }, { wch: 12 }, { wch: 11 }, { wch: 10 }, { wch: 11 }, { wch: 26 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Event report');
+  const safe = event.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Event';
+  XLSX.writeFile(wb, `${safe} ${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+$('exportBtn').addEventListener('click', () => {
+  const t = currentTally();
+  const rows = Object.keys(t).map(c => {
+    const it = S.items[c] || { name: c, type: 'Asset' };
+    return { code: c, name: it.name, type: it.type, out: t[c].out, in: t[c].in };
+  });
+  exportRows(S.event, rows);
+});
+$('sumExport').addEventListener('click', () => exportRows(S.summary.event, S.summary.rows));
+
+/* ---------------- Start ---------------- */
+(async function init() {
+  if (CFG.APP_NAME) { $('appName').textContent = CFG.APP_NAME; document.title = CFG.APP_NAME; }
+  $('loginName').value = S.name || '';
+  if (S.token) { await loadData(); if (S.token) show('events'); }
+  else show('login');
+  updatePill();
+  sync();
+})();
+</script>
+</body>
+</html>
