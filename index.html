@@ -9,7 +9,7 @@
 <title>Event Inventory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
@@ -18,18 +18,18 @@
   --ink:#15202B; --paper:#EDF0F3; --card:#FFFFFF; --line:#CFD6DD; --muted:#566573;
   --out:#2447C9; --in:#0A7C5C; --warn:#A8520F; --bad:#B42318;
   --mode:var(--out);
-  --sans:'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-  --cond:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
+  --sans:'Quicksand',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --cond:'Quicksand',system-ui,sans-serif;
 }
 body[data-mode="IN"]{--mode:var(--in)}
 body[data-mode="RESTOCK"]{--mode:#8A4B0F}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.45 var(--sans);-webkit-text-size-adjust:100%}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:500 17px/1.45 var(--sans);-webkit-text-size-adjust:100%}
 body{padding-bottom:env(safe-area-inset-bottom,0px)}
 main{max-width:560px;margin:0 auto;min-height:100vh}
 [hidden]{display:none!important}
-h1,h2{font-family:var(--cond);font-weight:700;letter-spacing:.01em;line-height:1.1;margin:0}
-h1{font-size:34px} h2{font-size:24px}
+h1,h2{font-family:var(--cond);font-weight:700;letter-spacing:-.01em;line-height:1.1;margin:0}
+h1{font-size:30px} h2{font-size:22px}
 p{margin:0}
 .muted{color:var(--muted)}
 .small{font-size:14px}
@@ -48,7 +48,7 @@ button:disabled{opacity:.5;cursor:default}
 
 /* login */
 .brand{padding:48px 20px 8px}
-.brand h1{font-size:44px}
+.brand h1{font-size:38px}
 .brand p{margin-top:8px}
 
 /* events */
@@ -67,7 +67,7 @@ button:disabled{opacity:.5;cursor:default}
 .bandtop{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px}
 .bandtop button{background:rgba(255,255,255,.16);min-height:40px;padding:8px 12px;font-size:15px}
 .evname{font-weight:500;opacity:.92;margin-top:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.modename{font-family:var(--cond);font-weight:700;font-size:40px;line-height:1;margin-top:2px}
+.modename{font-family:var(--cond);font-weight:700;font-size:34px;letter-spacing:-.01em;line-height:1;margin-top:2px}
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;background:rgba(0,0,0,.18);padding:5px;border-radius:12px}
 .modes button{background:transparent;color:#fff;min-height:46px;border-radius:8px}
 .modes button[aria-pressed="true"]{background:#fff;color:var(--mode)}
@@ -110,7 +110,7 @@ button:disabled{opacity:.5;cursor:default}
 dialog{border:0;border-radius:16px;padding:0;width:min(92vw,440px);color:var(--ink)}
 dialog::backdrop{background:rgba(21,32,43,.55)}
 dialog form{padding:22px}
-.qty{font:600 34px var(--cond);text-align:center;min-height:64px}
+.qty{font:700 30px var(--cond);text-align:center;min-height:64px}
 .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .steps button{min-height:44px;padding:8px;background:var(--paper);color:var(--ink);font-size:16px}
 
