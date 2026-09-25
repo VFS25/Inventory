@@ -22,6 +22,7 @@
   --cond:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
 }
 body[data-mode="IN"]{--mode:var(--in)}
+body[data-mode="RESTOCK"]{--mode:#8A4B0F}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.45 var(--sans);-webkit-text-size-adjust:100%}
 body{padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -102,6 +103,8 @@ button:disabled{opacity:.5;cursor:default}
 .chip{justify-self:end;font-size:13px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
 .chip.open{background:#FDF1E3;color:var(--warn)}
 .chip.done{background:#E4F3EC;color:var(--in)}
+.chip.undone{background:var(--paper);color:var(--muted)}
+.band-note{font-size:15px;opacity:.9;margin-top:6px}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 dialog{border:0;border-radius:16px;padding:0;width:min(92vw,440px);color:var(--ink)}
@@ -145,6 +148,7 @@ dialog form{padding:22px}
       <p id="evError" class="error" role="alert"></p>
       <button class="full" type="submit">Create event</button>
     </form>
+    <button type="button" class="ghost full" id="restockOpen">Restock items</button>
     <a class="btn ghost full" href="labels.html">Print item labels</a>
   </div>
 </section>
@@ -154,7 +158,7 @@ dialog form{padding:22px}
   <header class="band">
     <div class="bandtop">
       <button type="button" id="backBtn" aria-label="Back to events">Events</button>
-      <span id="syncPill" class="pill" role="status">All saved</span>
+      <span class="pill syncpill" role="status">All saved</span>
     </div>
     <p class="evname" id="scanEventName"></p>
     <p class="modename" id="modeName">Packing out</p>
@@ -165,6 +169,7 @@ dialog form{padding:22px}
   </header>
 
   <div class="pad stack">
+    <div class="camslot"><div id="scanKit" class="stack">
     <div class="reader-wrap">
       <div id="reader"></div>
       <div id="readerIdle" class="reader-idle">
@@ -183,6 +188,7 @@ dialog form{padding:22px}
       <button type="button" class="ghost" id="undoBtn">Undo last scan</button>
       <button type="button" class="ghost" id="camStop">Stop camera</button>
     </div>
+    </div></div>
 
     <div class="listhead"><h2>This event</h2><span id="listSummary" class="muted small"></span></div>
     <div id="checklist" class="checklist"></div>
@@ -191,6 +197,23 @@ dialog form{padding:22px}
       <button type="button" class="ghost" id="exportBtn">Export to Excel</button>
       <button type="button" id="closeBtn">Close event</button>
     </div>
+  </div>
+</section>
+
+<!-- Restock -->
+<section id="restock" hidden>
+  <header class="band">
+    <div class="bandtop">
+      <button type="button" id="restockBack" aria-label="Back to events">Events</button>
+      <span class="pill syncpill" role="status">All saved</span>
+    </div>
+    <p class="modename" style="margin-top:10px">Restocking</p>
+    <p class="band-note">Scan an item and enter how many new ones arrived. They're added to Total Received in the Sheet.</p>
+  </header>
+  <div class="pad stack">
+    <div class="camslot"></div>
+    <div class="listhead"><h2>Added this session</h2><span id="restockSummary" class="muted small"></span></div>
+    <div id="restockList" class="checklist"></div>
   </div>
 </section>
 
@@ -254,7 +277,7 @@ const LS = {
 const S = {
   token: LS.get('token', null), name: LS.get('name', ''),
   items: {}, events: [], event: null, mode: 'OUT',
-  serverTally: {}, queue: LS.get('queue', []), session: [],
+  serverTally: {}, queue: LS.get('queue', []), session: [], rejected: new Set(), screen: '',
   lastCode: '', lastAt: 0, busy: false, syncing: false,
   scanner: null, cameraOn: false, summary: null
 };
@@ -279,8 +302,10 @@ async function api(action, data = {}) {
 
 /* ---------------- Screens ---------------- */
 function show(id) {
-  ['login', 'events', 'scan', 'summary'].forEach(s => $(s).hidden = s !== id);
-  if (id !== 'scan') stopCamera();
+  ['login', 'events', 'scan', 'restock', 'summary'].forEach(s => $(s).hidden = s !== id);
+  S.screen = id;
+  if (id === 'scan' || id === 'restock') $(id).querySelector('.camslot').appendChild($('scanKit'));
+  else stopCamera();
   window.scrollTo(0, 0);
 }
 
@@ -392,6 +417,48 @@ async function refreshTally() {
 
 $('backBtn').addEventListener('click', () => { S.event = null; renderEvents(); show('events'); loadData(); });
 
+/* ---------------- Restock ---------------- */
+function openRestock() {
+  S.event = null; S.session = [];
+  S.mode = 'RESTOCK';
+  document.body.dataset.mode = 'RESTOCK';
+  document.querySelector('meta[name=theme-color]').content = '#8A4B0F';
+  setFlash('', 'Ready to restock', 'Scan a label or type a code, then enter how many arrived.');
+  show('restock');
+  renderRestock();
+}
+$('restockOpen').addEventListener('click', openRestock);
+$('restockBack').addEventListener('click', () => { renderEvents(); show('events'); loadData(); });
+
+function renderRestock() {
+  const pending = new Set(S.queue.map(s => s.id));
+  const rows = S.session.filter(x => x.scan.dir === 'RESTOCK');
+  if (!rows.length) {
+    $('restockList').innerHTML = '<div class="item"><span class="muted">Nothing added yet. Scan a label or type a code to start.</span></div>';
+    $('restockSummary').textContent = '';
+    return;
+  }
+  const n = rows.filter(x => !x.undone).length;
+  $('restockSummary').textContent = `${n} item${n === 1 ? '' : 's'} restocked`;
+  $('restockList').innerHTML = rows.map(x => {
+    const it = S.items[x.scan.code] || {};
+    let status;
+    if (x.undone) status = '<span class="chip undone">Undone</span>';
+    else if (S.rejected.has(x.scan.id)) status = '<span class="chip open">Not saved</span>';
+    else if (pending.has(x.scan.id)) status = '<span class="chip open">Waiting to send</span>';
+    else status = `<span class="chip done">Saved, total now ${it.received != null ? it.received : '?'}</span>`;
+    return `<div class="item">
+      <span><span class="nm">${esc(x.name)}</span><br><span class="cd">${esc(x.scan.code)}</span></span>
+      <span class="nums">Added <b>${x.scan.qty}</b></span>
+      <span></span>${status}
+    </div>`;
+  }).join('');
+}
+
+function renderCurrent() {
+  if (S.screen === 'restock') renderRestock(); else renderChecklist();
+}
+
 /* ---------------- Mode ---------------- */
 function setMode(m) {
   S.mode = m;
@@ -442,7 +509,7 @@ function renderChecklist() {
 /* ---------------- Scanning ---------------- */
 function handleCode(raw, fromCamera) {
   const code = String(raw || '').trim().toUpperCase();
-  if (!code || !S.event || S.busy) return;
+  if (!code || S.busy || !(S.event || S.mode === 'RESTOCK')) return;
   const now = Date.now();
   if (fromCamera && code === S.lastCode && now - S.lastAt < 2500) return;   // same label still in view
   S.lastCode = code; S.lastAt = now;
@@ -452,6 +519,8 @@ function handleCode(raw, fromCamera) {
     setFlash('bad', `${code} is not in the item list`, 'Add it to the Items tab in the Sheet, then go back to Events to reload.');
     return feedback(false);
   }
+  if (S.mode === 'RESTOCK') return askQty(item, 0);
+
   const t = currentTally()[code] || { out: 0, in: 0 };
   const left = t.out - t.in;
 
@@ -465,12 +534,13 @@ function handleCode(raw, fromCamera) {
 }
 
 function record(item, qty) {
-  const scan = { id: uid(), ts: Date.now(), eventId: S.event.id, code: item.code, qty, dir: S.mode };
+  const scan = { id: uid(), ts: Date.now(), eventId: S.event ? S.event.id : null, code: item.code, qty, dir: S.mode };
   S.queue.push(scan); LS.set('queue', S.queue);
   S.session.unshift({ scan, name: item.name });
-  setFlash('good', `${S.mode === 'OUT' ? 'Packed' : 'Returned'} ${qty} × ${item.name}`, item.code);
+  const verb = { OUT: 'Packed', IN: 'Returned', RESTOCK: 'Added' }[S.mode];
+  setFlash('good', `${verb} ${qty} × ${item.name}${S.mode === 'RESTOCK' ? ' to inventory' : ''}`, item.code);
   feedback(true);
-  renderChecklist();
+  renderCurrent();
   sync();
 }
 
@@ -480,8 +550,9 @@ $('undoBtn').addEventListener('click', () => {
   const rev = Object.assign({}, last.scan, { id: uid(), ts: Date.now(), qty: -last.scan.qty });
   last.undone = true;
   S.queue.push(rev); LS.set('queue', S.queue);
-  setFlash('warn', `Undone: ${last.scan.dir === 'OUT' ? 'packed' : 'returned'} ${last.scan.qty} × ${last.name}`, last.scan.code);
-  renderChecklist();
+  const verb = { OUT: 'packed', IN: 'returned', RESTOCK: 'added' }[last.scan.dir];
+  setFlash('warn', `Undone: ${verb} ${last.scan.qty} × ${last.name}`, last.scan.code);
+  renderCurrent();
   sync();
 });
 
@@ -505,9 +576,14 @@ function askQty(item, left) {
   S.busy = true; pauseCamera();
   qtyItem = item; qtyLeft = left;
   $('qtyTitle').textContent = item.name;
-  $('qtyHint').textContent = S.mode === 'OUT'
-    ? `How many are you packing?${left > 0 ? ' ' + left + ' already packed for this event.' : ''}`
-    : `${left} still out for this event. Count how many came back.`;
+  if (S.mode === 'RESTOCK') {
+    $('qtyHint').textContent = `How many new ones arrived? Total received is currently ${item.received}.` +
+      (item.type === 'Asset' ? ' This is an asset, which usually has one code per item. Only add here if this code covers several identical items.' : '');
+  } else {
+    $('qtyHint').textContent = S.mode === 'OUT'
+      ? `How many are you packing?${left > 0 ? ' ' + left + ' already packed for this event.' : ''}`
+      : `${left} still out for this event. Count how many came back.`;
+  }
   $('qtyInput').value = '';
   $('qtyError').textContent = '';
   $('qtyDialog').showModal();
@@ -594,7 +670,11 @@ async function sync() {
       }
       S.queue = S.queue.filter(s => !done.has(s.id));
       LS.set('queue', S.queue);
-      r.rejected.forEach(x => toast('Not saved: ' + x.error, true));
+      r.rejected.forEach(x => { S.rejected.add(x.id); toast('Not saved: ' + x.error, true); });
+      if (r.totals && Object.keys(r.totals).length) {
+        Object.keys(r.totals).forEach(c => { if (S.items[c]) S.items[c].received = r.totals[c]; });
+        LS.set('cache', { items: Object.values(S.items), events: S.events });
+      }
       again = S.queue.length > 0;
     } else if (r.error) {
       toast('Sync problem: ' + r.error, true);
@@ -602,17 +682,18 @@ async function sync() {
   } catch (e) { /* offline or timed out: scans stay queued */ }
   finally {
     S.syncing = false;
-    updatePill(); renderChecklist();
+    updatePill(); renderCurrent();
     if (again) setTimeout(sync, 400);
   }
 }
 
 function updatePill() {
-  const p = $('syncPill'), n = S.queue.length;
-  if (!navigator.onLine) { p.className = 'pill off'; p.textContent = n ? `Offline, ${n} waiting` : 'Offline'; }
-  else if (S.syncing) { p.className = 'pill'; p.textContent = 'Sending…'; }
-  else if (n) { p.className = 'pill wait'; p.textContent = `${n} waiting to send`; }
-  else { p.className = 'pill'; p.textContent = 'All saved'; }
+  const n = S.queue.length;
+  let cls = '', text = 'All saved';
+  if (!navigator.onLine) { cls = 'off'; text = n ? `Offline, ${n} waiting` : 'Offline'; }
+  else if (S.syncing) { text = 'Sending…'; }
+  else if (n) { cls = 'wait'; text = `${n} waiting to send`; }
+  document.querySelectorAll('.syncpill').forEach(p => { p.className = 'pill syncpill ' + cls; p.textContent = text; });
 }
 setInterval(sync, 10000);
 window.addEventListener('online', sync);
